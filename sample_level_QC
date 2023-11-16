@@ -1,0 +1,57 @@
+###### Rscript for sample-level QC ######
+###### Author : Shelley #################
+###### Date: 2023/11/16 #################
+###### UKBiobank project ID:k99093r675037#
+
+# load packages 
+library(plyr)
+library(dplyr)
+library(data.table)
+
+# load phenotype data 
+import <- c("f.eid",
+            "f.31.0.0", # sex
+            "f.22001.0.0", # genetic sex
+            "f.22006.0.0", # genetic ethnic grouping, only Caucasian were included
+            "f.22019.0.0", # sex chromosome aneuploidy
+            "f.22020.0.0" # used in genetic PC, non-relatives)
+            )
+phen.head <-
+  fread(
+    cmd = paste0("head -n 1 ",
+                 "/gpfs/hpc/home/lijc/zhangsy/UKB/phenotype_99093/ukb675037.tab")
+  )
+
+input_file1 <- "/gpfs/hpc/home/lijc/zhangsy/UKB/phenotype_99093/ukb675037.tab"
+
+phen <- fread(cmd = paste0("cut -f ", paste(which(names(phen.head) %in% import),
+                                            collapse = ","), " ", input_file1, " ", fill = T),
+                    data.table = FALSE)
+
+data <- phen
+
+#### QC
+
+# step 1: concordant sex
+# dim(data)=502357
+filter_1 <- data %>% filter(f.31.0.0 == f.22001.0.0)
+# dim(filter_1)=487746
+
+# step 2: Caucasian
+filter_2 <- filter_1 %>% filter(f.22006.0.0 == 1)
+# dim(filter_2)=409205
+
+# step 3: remove sex chromosome aneuploidy (keep NA)
+filter_3 <- filter_2 %>% filter(is.na(f.22019.0.0))
+# dim(filter_3)=408798
+
+# step 4: non-relatives 
+filter_4 <- filter_3 %>% filter(f.22020.0.0 == 1)
+# dim(filter_4)=337047
+
+# extract the f.eid column
+QCed_sample_id <- filter_4[,1]
+
+# save the QCed sample id
+write.csv(file="/gpfs/hpc/home/lijc/zhangsy/UKB/phenotype_99093/sample_QC/QCed_sample_id.csv", QCed_sample_id, row.names = FALSE, quote=FALSE)
+
